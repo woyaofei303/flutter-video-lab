@@ -1,6 +1,22 @@
 # 验证记录与交付边界
 
-日期：2026-10-31。以下是首次验证的记录；日志和截图保留在验证机器的 `output-tdd/`，不上传到公开仓库，克隆后不会包含这些文件。Android 与 iOS 模拟器都已完成原生编译、安装、启动，并实际播放了 Flutter 原生视频和内嵌 H5 视频。下面分别记录工具链、自动检查和设备观察；这些结果不等于真机或完整产品验收。
+日期：2026-10-31。本文先记录本次 iOS 握手修复，再保留首次设备验证记录。日志和截图保留在验证机器的 `output-tdd/`，不上传到公开仓库，克隆后不会包含这些文件。Android 与 iOS 模拟器都已完成原生编译、安装、启动，并实际播放了 Flutter 原生视频和内嵌 H5 视频；这些结果不等于真机或完整产品验收。
+
+## iOS 重复进入 H5 的握手修复
+
+原始失败发生在 16:23:57 至 16:24:43 之间。系统日志显示，16:24:27 页面导航等待已达 30 秒，WebProcess 的 PID 仍为 0；到 16:24:43，GPU 和 WebContent 进程才分别在启动 46.12 秒、46.13 秒后可用。此时网页尚未有机会完成正常握手，应用却已经按 30 秒判定失败。因此这次证据支持的是“页面启动占用了握手期限”，不是已确认的 JS 消息丢失。
+
+修复集中在 `H5Engine`：先等待当前页面加载完成，最多 60 秒；之后单独等待 Bridge ready，最多 30 秒。提前到达的 ready 会保留，主页面加载错误立即结束等待，子资源错误不会触发主页面失败。初始化失败后的清理不再向未启动的页面发送暂停脚本；清空页面时允许 `about:blank`，其他导航仍受限制。普通 Bridge 命令的超时没有改变。
+
+新增 `test/h5_engine_test.dart` 的 5 项回归覆盖：46 秒启动后恢复第 8 秒、1.5 倍速和静音并再次进入；页面不完成时 60 秒超时；页面完成但无 ready 时 30 秒超时；主页面错误立即失败；无关页面、子资源错误和提前 ready 的事件顺序。46 秒时序在原实现上先出现 30 秒超时，修复后通过。这里使用 fake WebView 和虚拟时钟重放时序，没有声称每次模拟器都能稳定复现系统进程的 46 秒慢启动。
+
+`pnpm check` 已通过：Biome、H5 类型检查、3 项 Node 测试、Tailwind 构建、Dart 格式、Flutter analyze 和 17 项 Flutter 测试。修复版通过 `flutter run` 重新编译并安装到 iOS 模拟器；Android ARM64 Debug APK 重新构建并安装成功。
+
+iOS 27.2 模拟器上，修复版连续完成 20 次 H5 初始化：前 10 次从首页进入并返回，后 10 次在原生与 H5 间接力。20 次均未出现握手超时，界面记录的初始化耗时为 2576～3256ms（不是首帧耗时）；后 10 次均恢复约第 8 秒、1.5 倍速和暂停状态。最后点击 H5 播放，观察到进度由 8.1 秒推进至 17.9 秒。截图为 `output-tdd/playwright/ios-h5-handshake/ios-h5-restored.png` 和 `ios-h5-played.png`。静音恢复由回归测试覆盖，本轮没有用设备音频测量验证；Android 本轮只确认重建、安装和首页启动，下面的 Android 播放观察属于修复前记录。
+
+原始系统日志：`output-tdd/ios-h5-handshake/original-timeout-system.log`；修改前后回归日志：同目录的 `regression-before.log`、`regression-after.log`；完整检查：`check.log`。模拟器循环记录位于 `output-tdd/playwright/ios-h5-handshake/cycles.json`。
+
+本次修复避免已观察到的慢启动被过早判为握手失败，并没有缩短 WebKit 自身的启动时间。两段等待最坏合计 90 秒，后面还有 restore/identity 命令和平台调用；不能把 90 秒当成整个初始化的严格总上限。页面启动超过 60 秒仍会报错，长时间资源与内存趋势尚未验收。
 
 ## 本机环境已经补齐
 
@@ -12,7 +28,7 @@
 
 最终 doctor 输出：`output-tdd/device-setup/doctor-final.txt`。原有 Java、Dart、Ruby 和其他项目文件没有删除；新增 Flutter 配置保存在用户目录的 `.flutter_settings`，Android 虚拟设备配置位于 `.android/avd/flutter_video_lab_api36.avd/`。
 
-## 编译、安装与界面观察
+## 首次编译、安装与界面观察（修复前）
 
 本次使用 Debug 构建和打包的 20 秒 H.264/AAC 测试素材，不依赖远程 CDN。
 
@@ -43,7 +59,7 @@ build/ios/iphonesimulator/Runner.app
 
 前者是 Android 调试包；后者只能用于模拟器，不是可供真实 iPhone 安装的 IPA。
 
-## 自动检查
+## 首次自动检查（修复前）
 
 - `pnpm check`：Biome、H5 JS 的 TypeScript 检查、3 项 Node 测试、Tailwind 构建、Dart 格式、Flutter analyze 和 12 项 Flutter 测试。
 - Flutter 测试包括 6 项播放会话行为、4 项 Bridge 行为、1 项 HTTP 素材服务组合场景、1 项首页小屏 Widget 测试。
@@ -55,7 +71,7 @@ build/ios/iphonesimulator/Runner.app
 
 ## 已发现但没有宣称解决的问题
 
-- iOS WebView 初始化有波动。一次成功加载耗时约 9.8 秒，说明旧的 8 秒 ready 限制过短，因此改为独立的 30 秒上限；这不是播放首帧指标，也不是性能优化达标。之后仍出现过一次 30 秒超时，重试可恢复，根因尚未确定。不能把增加等待时间称为完全修复。
+- iOS WebKit 启动耗时仍有波动。首次验证中先后出现约 9.8 秒成功和 30 秒超时；这次已通过原始日志确定后一次超时包含约 46 秒的进程启动，并修正应用的分阶段计时。系统进程为什么启动如此缓慢仍未确定，不能把本次修复称为性能达标。
 - iOS runtime 启动日志出现过 `Data Migration Failed`，但设备能够进入系统并运行本项目。尚未确认它与 WebView 超时是否相关，不应据此归因给业务代码或系统。
 - Android 模拟器目前依赖上面的渲染参数。尚未验证默认 Vulkan 配置恢复后是否稳定。
 
@@ -66,7 +82,7 @@ build/ios/iphonesimulator/Runner.app
 - 真实 CDN 弱网、HLS/ABR、WebRTC、真实登录、会员、广告、付费和多语言。
 - 原有 douyin 的集成：此前检查的目录只有 `.idea`，没有可用源码。
 
-本次完成的是环境安装、两端构建运行与基本播放验证。详细启动命令和后续设备验收清单见 [设备运行指南](DEVICE-SETUP.md)。
+详细启动命令和后续设备验收清单见 [设备运行指南](DEVICE-SETUP.md)。
 
 ## 浏览器历史观察
 

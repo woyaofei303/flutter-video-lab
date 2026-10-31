@@ -83,6 +83,8 @@ class H5Engine implements PlaybackEngine {
       },
       onHandoff: onHandoff,
     );
+    _pageLoaded.future.ignore();
+    _loadFailure.future.ignore();
   }
   final AssetServer server;
   final String quality;
@@ -90,6 +92,9 @@ class H5Engine implements PlaybackEngine {
   final String Function() identity;
   late final WebViewController controller;
   late final BridgeClient bridge;
+  final _pageLoaded = Completer<void>();
+  final _loadFailure = Completer<void>();
+  bool _initialized = false;
   PlaybackSnapshot _snapshot = const PlaybackSnapshot();
   @override
   PlaybackSnapshot get snapshot => _snapshot;
@@ -109,6 +114,18 @@ class H5Engine implements PlaybackEngine {
         );
     await controller.setNavigationDelegate(
       NavigationDelegate(
+        onPageFinished: (url) {
+          if (Uri.tryParse(url) == uri && !_pageLoaded.isCompleted) {
+            _pageLoaded.complete();
+          }
+        },
+        onWebResourceError: (error) {
+          if (error.isForMainFrame == true && !_loadFailure.isCompleted) {
+            _loadFailure.completeError(
+              StateError('H5 页面加载失败：${error.description}'),
+            );
+          }
+        },
         onNavigationRequest: (request) =>
             request.isMainFrame && Uri.tryParse(request.url) == uri
             ? NavigationDecision.navigate
@@ -120,9 +137,18 @@ class H5Engine implements PlaybackEngine {
           .setMediaPlaybackRequiresUserGesture(false);
     }
     await controller.loadRequest(uri);
-    await bridge.ready;
+    // WebKit process launch must finish before the page's handshake deadline starts.
+    await Future.any([
+      _pageLoaded.future.timeout(
+        const Duration(seconds: 60),
+        onTimeout: () => throw TimeoutException('H5 页面启动超时'),
+      ),
+      _loadFailure.future,
+    ]);
+    await Future.any([bridge.ready, _loadFailure.future]);
     _snapshot = await bridge.request('restore', state.toJson());
     await syncIdentity();
+    _initialized = true;
   }
 
   Future<void> syncIdentity() async {
@@ -136,6 +162,7 @@ class H5Engine implements PlaybackEngine {
 
   @override
   Future<void> pause() async {
+    if (!_initialized) return;
     _snapshot = await bridge.request('pause');
   }
 
@@ -143,18 +170,29 @@ class H5Engine implements PlaybackEngine {
   Future<PlaybackSnapshot> freeze() => bridge.request('freeze');
   @override
   Future<void> dispose() async {
-    // Also stop media when initialization or the bridge failed.
-    try {
-      await controller.runJavaScript(
-        'document.querySelector("video")?.pause();',
-      );
-    } catch (_) {}
+    if (!_pageLoaded.isCompleted) {
+      _pageLoaded.completeError(StateError('H5_CLOSED'));
+    }
+    if (!_loadFailure.isCompleted) {
+      _loadFailure.completeError(StateError('H5_CLOSED'));
+    }
     bridge.close();
+    // An uninitialized page cannot be playing and may not execute JavaScript yet.
+    if (_initialized) {
+      try {
+        await controller.runJavaScript(
+          'document.querySelector("video")?.pause();',
+        );
+      } catch (_) {}
+    }
+    _initialized = false;
     await controller.removeJavaScriptChannel('LabBridge');
     await controller.setJavaScriptMode(JavaScriptMode.disabled);
     await controller.setNavigationDelegate(
       NavigationDelegate(
-        onNavigationRequest: (_) => NavigationDecision.prevent,
+        onNavigationRequest: (request) => request.url == 'about:blank'
+            ? NavigationDecision.navigate
+            : NavigationDecision.prevent,
       ),
     );
     await controller.loadHtmlString(
