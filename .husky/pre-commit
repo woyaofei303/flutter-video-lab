@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+set -eu
+pnpm exec lint-staged
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build:h5
+if ! git ls-files --error-unmatch assets/h5/index.html assets/h5/app.js assets/h5/bridge.js assets/h5/style.css assets/h5/captions.vtt >/dev/null 2>&1 ||
+   ! git diff --quiet -- assets/h5; then
+  printf '%s\n' 'H5 构建产物与暂存区不一致。请检查 assets/h5 并把本次生成的文件加入暂存区，再提交。' >&2
+  exit 1
+fi
+sh scripts/check-flutter.sh

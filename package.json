@@ -1,0 +1,28 @@
+{
+  "name": "flutter-video-lab-h5",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "scripts": {
+    "prepare": "husky",
+    "build:h5": "node scripts/build-h5.mjs",
+    "dev:h5": "node scripts/serve-h5.mjs",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test h5/*.test.mjs",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build:h5 && sh scripts/check-flutter.sh"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.0",
+    "@tailwindcss/cli": "^4.1.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.9.0"
+  },
+  "lint-staged": {
+    "*.{js,mjs,ts,json,css,html}": "biome check --write --no-errors-on-unmatched",
+    "*.dart": "sh scripts/flutterw dart format"
+  }
+}

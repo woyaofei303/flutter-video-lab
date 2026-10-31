@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; media-src 'self'; connect-src 'self'; img-src 'self'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+    <title>播放实验室 · H5</title>
+    <link rel="stylesheet" href="./style.css">
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body class="min-h-dvh bg-slate-950 text-slate-100 antialiased">
+    <main class="mx-auto max-w-2xl p-4">
+      <p class="mb-3 text-xs font-semibold tracking-widest text-teal-300">VIDEO LAB / H5</p>
+      <video id="video" class="aspect-video w-full rounded-2xl bg-black" controls playsinline preload="metadata"><track kind="captions" src="./captions.vtt" srclang="zh" label="声音说明" default></video>
+      <div class="my-4 flex flex-wrap items-center gap-3">
+        <label class="text-sm text-slate-300" for="speed">倍速</label>
+        <select id="speed" class="rounded-lg bg-slate-800 p-2">
+          <option value="0.5">0.5×</option><option value="1" selected>1×</option>
+          <option value="1.5">1.5×</option><option value="2">2×</option>
+        </select>
+        <button id="handoff" type="button" class="rounded-xl bg-teal-300 px-4 py-2 font-semibold text-slate-950 disabled:opacity-40">交给 Flutter 播放</button>
+      </div>
+      <p id="status" role="status" class="rounded-xl border border-slate-700 p-3 text-sm text-slate-300">正在准备视频…</p>
+      <p id="identity" class="mt-3 text-sm text-teal-200">演示身份：游客</p>
+      <section class="mt-6">
+        <h1 class="text-xl font-semibold">从第 8 秒继续</h1>
+        <p class="mt-2 text-sm leading-6 text-slate-400">播放后切回 Flutter，观察进度、倍速和静音是否保留。彩色测试图和轻音调用于检查画面、声音与双播问题。</p>
+        <label class="mt-5 block text-sm" for="comment">本地评论练习</label>
+        <form id="comment-form" class="mt-2 flex gap-2">
+          <input id="comment" maxlength="100" required class="min-w-0 flex-1 rounded-xl bg-slate-800 px-3 py-2" placeholder="例如：切换后进度一致">
+          <button type="submit" class="rounded-xl bg-slate-700 px-4 py-2">添加</button>
+        </form>
+        <p class="mt-2 text-xs text-slate-500">仅保存在当前页面，无后端，退出后清空。</p>
+        <ul id="comments" class="mt-3 space-y-2 text-sm text-slate-300"></ul>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,27 @@
+.dart_tool/
+.flutter-plugins-dependencies
+.packages
+build/
+coverage/
+node_modules/
+output-tdd/
+.DS_Store
+*.iml
+.idea/
+android/local.properties
+android/.gradle/
+android/captures/
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/ephemeral/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+**/xcuserdata/
+
+# Android sources must survive a user-level *.xml ignore rule.
+!android/app/src/**/*.xml
+
+# Local credentials are never part of the public repository.
+.env
+.env.*
+!.env.example

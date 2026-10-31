@@ -1,0 +1,21 @@
+#!/usr/bin/env sh
+set -eu
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+project_dir=$(dirname "$script_dir")
+if [ -n "${FLUTTER_BIN:-}" ]; then
+  flutter_bin=$FLUTTER_BIN
+elif command -v flutter >/dev/null 2>&1; then
+  flutter_bin=$(command -v flutter)
+elif [ -x "$project_dir/../../output-tdd/flutter-video-lab/flutter/bin/flutter" ]; then
+  flutter_bin="$project_dir/../../output-tdd/flutter-video-lab/flutter/bin/flutter"
+else
+  printf '%s\n' '未找到 Flutter。请设置 FLUTTER_BIN 为 Flutter 可执行文件的绝对路径。' >&2
+  exit 127
+fi
+# 子进程也使用这套 Flutter / Dart，避免调用系统旧版。
+export PATH="$(dirname "$flutter_bin"):$PATH"
+if [ "${1:-}" = dart ]; then
+  shift
+  exec "$(dirname "$flutter_bin")/dart" "$@"
+fi
+exec "$flutter_bin" "$@"
