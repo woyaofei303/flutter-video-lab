@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'asset_server.dart';
 import 'player_page.dart';
 import 'playback.dart';
+import 'remote_player_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -112,6 +113,18 @@ class _HomePageState extends State<HomePage> {
             subtitle: 'WebView · 双向通信 · 状态接力 · 模拟身份',
             icon: Icons.web,
             onTap: () => open(PlayerMode.h5),
+          ),
+          const SizedBox(height: 28),
+          _LessonCard(
+            number: '03',
+            title: '线上推荐（Douyin）',
+            subtitle: '真实 H5 · 原生接力 · 弹幕 · 播放诊断',
+            icon: Icons.smartphone,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => RemotePlayerPage(identity: identity),
+              ),
+            ),
           ),
           const SizedBox(height: 28),
           const Text(

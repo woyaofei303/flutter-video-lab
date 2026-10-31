@@ -1,8 +1,45 @@
 # 验证记录与交付边界
 
-日期：2026-10-31。本文先记录本次 iOS 握手修复，再保留首次设备验证记录。日志和截图保留在验证机器的 `output-tdd/`，不上传到公开仓库，克隆后不会包含这些文件。Android 与 iOS 模拟器都已完成原生编译、安装、启动，并实际播放了 Flutter 原生视频和内嵌 H5 视频；这些结果不等于真机或完整产品验收。
+日期：2026-10-31。本文先记录推荐页混合播放接入，再保留此前 iOS 握手修复与首次设备验证记录。日志和截图保留在验证机器的 `output-tdd/`，不上传到公开仓库，克隆后不会包含这些文件。Android 与 iOS 模拟器都已完成原生编译、安装、启动，并实际播放了 Flutter 原生视频和内嵌 H5 视频；这些结果不等于真机或完整产品验收。
 
-## iOS 重复进入 H5 的握手修复
+## 2026-10-31 生产发布
+
+H5 提交 `74b9e36e124c4b878a6b28da3c5d6b88aa03d0da` 已推送到公开仓库 `woyaofei303/douyin` 的 main。[生产工作流 41190485677](https://github.com/woyaofei303/douyin/actions/runs/41190485677) 的 CI 与 Deploy 均成功，公网 `version.txt` 返回：
+
+```text
+74b9e36e124c4b878a6b28da3c5d6b88aa03d0da-41190485677-1
+```
+
+线上 `/home?lab=1` 已人工验证暂停在第 8 秒、1.5 倍速和 360p；真实 video 返回 `640×360`、`paused=true`、`error=null`。720p 素材的 Range 请求返回 HTTP 206、`video/mp4` 和正确文件总长度 3189637 字节。截图为 `output-tdd/playwright/remote-h5/online-controls.png`。
+
+发布后，两端都去掉 `H5_BASE_URL` 覆盖，直接连接线上 HTTPS，重新运行同一份设备集成测试：Android 和 iOS 各 3 轮全部通过，均确认 H5 与原生视频时间实际前进、8 秒接力、1.5 倍速/静音保留、12 秒恢复、后台暂停和重入释放。Android 用例执行约 31 秒，iOS 约 32 秒，均不含编译安装；不将它们当作首帧性能指标。
+
+线上测试日志为 `output-tdd/remote-h5/android-production-integration.log` 与 `ios-production-integration.log`。iOS 首次启动测试时设备处于关机状态，重新启动原设备后完成测试，没有修改播放代码来绕过检查。验证结束后已重新构建并安装正常 `lib/main.dart` 入口的 Android Debug APK 和 iOS Simulator App，两端启动成功，默认连接线上站点，不依赖本地 H5 服务。构建安装日志为 `android-production-app.log` 和 `ios-production-app.log`。本次仍是模拟器验证，不等于真机兼容性或完整业务验收。
+
+## 本轮：现有推荐页的 Flutter / H5 接入
+
+本轮改动位于 Flutter 的 `codex/flutter-video-lab` 和 H5 的 `codex/flutter-hybrid-playback`。默认代码使用 `https://dy.sunshinedairy.net/`；以下设备结果使用 Debug 专用地址 `http://127.0.0.1:3002` 联调本地 H5。本节记录发布前的本地验收，线上发布与复验另行记录，不能仅凭本地通过认定线上已完成。
+
+自动检查已通过：
+
+- Flutter `pnpm check`：Biome、打包 H5 类型检查、3 项 Node 测试、Tailwind 构建、Dart 格式、analyze 和 22 项 Flutter 测试。新增 5 项远程 Bridge 测试覆盖来源/字段校验、会话隔离、退出取消和超时。
+- H5：源码与新增测试 lint、新增模块严格类型检查、4 项 Node 行为测试、19 项 Chromium 回归（原有 15 项加本轮 4 项）、生产构建。
+- 另用生产构建的静态预览运行同一组 4 项混合播放测试，全部通过；覆盖生产环境不同的虚拟列表挂载分支。
+- 两仓库提交前钩子均用临时 Git index 实际执行，真实暂存区保持为空。H5 沿用既有 ESLint/Prettier，未迁移工具链。历史全量类型错误没有在本轮整体清理，严格检查只覆盖新增模块。
+
+`integration_test/remote_playback_test.dart` 在 Android API 36 ARM64 与 iOS 27.2 iPhone Duo 模拟器分别通过。每端循环 3 次，使用真实 WebView 与原生解码器，检查以下完整路径：打开推荐页 → 练习 lab-1 → 暂停在 8 秒、1.5 倍速、静音 → 原生接力 → 原生时间前进 → 暂停并定位到 12 秒 → 返回同一个 H5 视频 → H5 时间前进 → 后台暂停、前台不自动续播 → 全屏方向请求 → 页面释放并拒绝旧 Bridge 请求。最终设备日志分别为 `output-tdd/remote-h5/android-integration-final.log` 和 `ios-integration-final.log`。用例执行约 43 秒和 30 秒，不含构建安装；这些不是播放性能数据。
+
+测试完成后已重新构建并安装正常首页入口：Android Debug APK 与 iOS Simulator Runner.app 均成功启动。这一步的模拟器安装包使用本地联调地址；后续生产复验去掉 `H5_BASE_URL`，单独记录线上结果。
+
+生命周期自动测试投递 Flutter 事件，全屏测试确认请求后仍保留状态，不能代替所有操作系统行为。人工补充观察在 iOS 完成：720p 切 360p、1.5 倍速和约 7.9 秒暂停接力；通过 Device Hub 旋转为横屏；全屏退出；Home 后重新进 App 保持暂停；新增工具区切英文。方向由系统决定，没有声称任何设备都能强制横屏。
+
+本轮定位并修复两个额外问题：WKWebView 页面完成回调早于 Vue 模块注册时，改为监听 `video-lab-ready`，避免误报未部署；旧站滑动后保留 200ms 点击抑制，新的控制手势会清除此标记，保证滑动后能立即操作工具。开发时还排除了验证产物目录的监听，避免 Playwright 写入 HTML trace 导致所有联调页面刷新。
+
+H5 日志在其仓库 `output-tdd/hybrid/`：`browser-final.log`、`production-tests.log`、`build-final.log`、`hook.log`；Flutter 门禁日志为 `output-tdd/remote-h5/hook.log`。界面截图位于 Flutter 仓库 `output-tdd/playwright/remote-h5/`。运行和复验步骤见 [远程推荐学习指南](HYBRID-REMOTE.md)。Android 每轮运行前需要重新设置端口映射，Flutter 测试清理时可能移除它。
+
+边界：只允许同站两份自制 MP4 原生接力；原推荐的历史外链可能过期。身份和评论是本地演示，未接真实登录、CMS、埋点服务、广告/付费、HLS/MSE/WebRTC。没有执行真机、弱网、长时间内存、音频中断与完整浏览器兼容矩阵验收。
+
+## 此前：iOS 重复进入 H5 的握手修复
 
 原始失败发生在 16:23:57 至 16:24:43 之间。系统日志显示，16:24:27 页面导航等待已达 30 秒，WebProcess 的 PID 仍为 0；到 16:24:43，GPU 和 WebContent 进程才分别在启动 46.12 秒、46.13 秒后可用。此时网页尚未有机会完成正常握手，应用却已经按 30 秒判定失败。因此这次证据支持的是“页面启动占用了握手期限”，不是已确认的 JS 消息丢失。
 
@@ -79,8 +116,8 @@ build/ios/iphonesimulator/Runner.app
 
 - Android/iPhone 真机、最低系统版本、正式签名、IPA、商店发布。
 - 两端长时间循环接力的声音连续性、资源释放与内存趋势；音频打断、横竖屏和系统返回的完整验收。
-- 真实 CDN 弱网、HLS/ABR、WebRTC、真实登录、会员、广告、付费和多语言。
-- 原有 douyin 的集成：此前检查的目录只有 `.idea`，没有可用源码。
+- 真实 CDN 弱网、HLS/ABR、WebRTC、真实登录、会员、广告、付费；本轮只覆盖新增控制区中英文，未覆盖全站国际化。
+- 原站完整业务模块：本轮已找到 `douyin-tailwind` 并接入现有推荐页，其他历史路由尚未接入 App 播放协议。
 
 详细启动命令和后续设备验收清单见 [设备运行指南](DEVICE-SETUP.md)。
 

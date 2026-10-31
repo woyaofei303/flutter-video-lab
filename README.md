@@ -20,6 +20,7 @@
 - Flutter：首页、内容卡片、路由、ChangeNotifier 状态管理、组件拆分。
 - 原生播放：播放/暂停、拖动、静音、0.5/1/1.5/2 倍速、全屏与方向请求。
 - H5：WebView、内联 video、倍速、本地评论、双向 JSBridge、模拟身份同步。
+- 线上推荐：接入 douyin 现有推荐页，提供单视频播放权、同视频原生接力、弹幕、播放诊断及新增控制区中英文；配套 H5 已发布，见下方接入说明。
 - 接力：保存位置、倍速、静音和播放意图；暂停确认后才释放旧播放器、建立新播放器。
 - 清晰度：手动切换 360p/720p MP4。会重新初始化播放器，有加载间隔；不是 HLS 自适应码率，也不承诺无缝切换。
 - 生命周期：后台暂停、前台不自动续播、退出释放、并发切换拦截。
@@ -87,7 +88,7 @@ Android 本机需要带 `-feature -Vulkan` 启动模拟器；iOS 的模拟器界
 
 ## 按这个顺序读代码
 
-- `lib/main.dart`：用户从首页选择原生或 H5 模式。
+- `lib/main.dart`：用户从首页选择本地原生、本地 H5 或线上推荐。
 - `lib/player_page.dart`：渲染页面、响应点击、处理后台和返回键。
 - `lib/playback.dart`：决定谁持有播放权、何时能切换、失败如何回退。
 - `lib/player_engines.dart`：分别调用 video_player 与 WebView。
@@ -97,11 +98,11 @@ Android 本机需要带 `-feature -Vulkan` 启动模拟器；iOS 的模拟器界
 
 原生和 H5 复用的是数据、通信协议和播放规则；Widget 与网页 DOM 各自实现。Flutter 组件不能直接作为 Vue/React 组件使用。
 
-## 接入本地 douyin
+## 已接入 douyin 现有推荐页
 
-创建此示例时，本地 douyin 目录只有 `.idea`，没有可读取源码，所以这一版没有改动或集成该项目。
+现已找到并改造实际源码 `/Users/julian/douyin-tailwind`（仓库 `woyaofei303/douyin`）。首页“线上推荐（Douyin）”默认打开 https://dy.sunshinedairy.net/，通过独立 v2 Bridge 控制推荐视频；配套站点已于 2026-10-31 发布，实际验收见 [验证记录](docs/VERIFICATION.md)。
 
-拿到源码后，先按 [Bridge 协议与接入说明](docs/BRIDGE.md) 改造你拥有的 H5。需要能控制 video、发送暂停确认和接收恢复命令。仅把抖音官方网站链接放进 WebView，不能证明你实现了这些能力，也不能假设官网会配合你的 Bridge。
+从“练习素材”进入同一推荐页的自制素材模式，练习第 8 秒接力、双清晰度、弹幕、全屏、演示身份与中英文同步。完整调用链、运行命令和 JD 边界见 [远程推荐学习指南](docs/HYBRID-REMOTE.md)。
 
 ## 修改后的检查和提交门禁
 
